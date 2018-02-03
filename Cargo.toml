@@ -1,0 +1,6 @@
+[package]
+name = "flowerid"
+version = "0.1.0"
+authors = ["Andrei V <andrei@ptaxa.net>"]
+
+[dependencies]
