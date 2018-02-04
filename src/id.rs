@@ -2,6 +2,7 @@
 
 use std::fmt;
 use base64;
+use limits as lim;
 
 use {Error, Result};
 
@@ -28,14 +29,18 @@ impl FID {
     /// );
     /// ```
     pub fn new(timestamp: u64, sequence: u16, generator: u16) -> Result<FID> {
-        if timestamp >= 1 << 42 {
+        if timestamp >= 1 << lim::TIMESTAMP_LENGTH {
             Err(Error::TimestampOverflow(timestamp))
-        } else if sequence >= 1 << 11 {
+        } else if sequence >= 1 << lim::SEQUENCE_LENGTH {
             Err(Error::SequenceOverflow(sequence))
-        } else if generator >= 1 << 10 {
+        } else if generator >= 1 << lim::GENERATOR_LENGTH {
             Err(Error::GeneratorOverflow(generator))
         } else {
-            Ok(FID((timestamp << (11 + 10)) | ((sequence as u64) << 10) | (generator as u64)))
+            Ok(FID(
+                (timestamp << (lim::SEQUENCE_LENGTH + lim::GENERATOR_LENGTH))
+                    | ((sequence as u64) << lim::GENERATOR_LENGTH)
+                    | (generator as u64),
+            ))
         }
     }
 
@@ -168,7 +173,7 @@ impl FID {
     /// );
     /// ```
     pub fn timestamp(&self) -> u64 {
-        (self.0 >> (11 + 10)) & 0x3ffffffffff
+        (self.0 & lim::TIMESTAMP_MASK) >> (lim::GENERATOR_LENGTH + lim::SEQUENCE_LENGTH)
     }
 
     /// sequence getter
@@ -183,7 +188,7 @@ impl FID {
     /// );
     /// ```
     pub fn sequence(&self) -> u16 {
-        ((self.0 >> 10) as u16) & 0x7ff
+        ((self.0 & lim::SEQUENCE_MASK) >> lim::GENERATOR_LENGTH) as u16
     }
 
     /// generator getter
@@ -198,7 +203,7 @@ impl FID {
     /// );
     /// ```
     pub fn generator(&self) -> u16 {
-        (self.0 as u16) & 0x3ff
+        (self.0 & lim::GENERATOR_MASK) as u16
     }
 }
 

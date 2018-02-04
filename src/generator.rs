@@ -3,12 +3,15 @@ use std::cmp;
 use std::time;
 use std::thread;
 use id::FID;
+use limits as lim;
 #[cfg(not(test))]
 use std::time::{SystemTime, UNIX_EPOCH};
 #[cfg(test)]
 use stub_time_systemtime::{SystemTime, UNIX_EPOCH};
 
 use {Error, Result};
+
+const TIMESTAMP_OFFSET: i64 = -1483228800;
 
 /// Flower identificator generator
 #[derive(Debug, Clone)]
@@ -43,7 +46,7 @@ impl FIDGeneratorBuilder {
     pub fn new(generator: u16) -> FIDGeneratorBuilder {
         FIDGeneratorBuilder(FIDGenerator {
             generator: generator,
-            timestamp_offset: -1483228800,
+            timestamp_offset: TIMESTAMP_OFFSET,
             timestamp_last: 0,
             sequence: 0,
             wait_sequence: true,
@@ -91,11 +94,11 @@ impl FIDGenerator {
     /// Error::SequenceOverflow
     /// Error::TimestampOverflow
     pub fn new(cfg: FIDGeneratorBuilder) -> Result<FIDGenerator> {
-        if cfg.0.generator >= 1 << 10 {
+        if cfg.0.generator >= 1 << lim::GENERATOR_LENGTH {
             Err(Error::GeneratorOverflow(cfg.0.generator))
-        } else if cfg.0.sequence >= 1 << 11 {
+        } else if cfg.0.sequence >= 1 << lim::SEQUENCE_LENGTH {
             Err(Error::SequenceOverflow(cfg.0.sequence))
-        } else if cfg.0.timestamp_last >= 1 << 42 {
+        } else if cfg.0.timestamp_last >= 1 << lim::TIMESTAMP_LENGTH {
             Err(Error::TimestampOverflow(cfg.0.timestamp_last))
         } else {
             Ok(cfg.0)
@@ -116,53 +119,66 @@ impl FIDGenerator {
     /// println!("{}", gen.next().unwrap());
     /// ```
     pub fn next(&mut self) -> Result<FID> {
+        fn convert_time(in_sec: bool, time: &time::Duration) -> u64 {
+            if in_sec {
+                time.as_secs()
+            } else {
+                time.as_secs() * 1000 + (time.subsec_nanos() / 1000 / 1000) as u64
+            }
+        }
+
         let mut offset = UNIX_EPOCH;
         if self.timestamp_offset < 0 {
             offset += time::Duration::from_secs(self.timestamp_offset.abs() as u64);
         } else {
             offset -= time::Duration::from_secs(self.timestamp_offset.abs() as u64);
         }
-        let time = SystemTime::now();
-        if time < offset {
+        let sys_time = SystemTime::now();
+        if sys_time < offset {
             return Err(Error::SysTimeIsInPast);
         }
-        let timer = time.duration_since(offset).unwrap();
-        let t_sec = timer.as_secs();
-        let t_subsec = timer.subsec_nanos() / 1000 / 1000;
-        if self.timestamp_in_seconds {
-            if t_sec >= 4398046511104 {
-                return Err(Error::TimestampOverflow(t_sec));
-            }
-        } else {
-            if t_sec >= 4398046511 {
-                return Err(Error::TimestampOverflow(t_sec));
-            }
+        let timestamp = sys_time
+            .duration_since(offset)
+            .map_err(|_| Error::SysTimeIsInPast)?;
+        let timestamp = convert_time(self.timestamp_in_seconds, &timestamp);
+        if timestamp >= 1 << lim::TIMESTAMP_LENGTH {
+            return Err(Error::TimestampOverflow(timestamp));
         }
-        let mut time = t_sec * 1000 + t_subsec as u64;
-        if self.timestamp_in_seconds {
-            time /= 1000;
-        }
-        match time.cmp(&self.timestamp_last) {
+        match timestamp.cmp(&self.timestamp_last) {
             cmp::Ordering::Less => Err(Error::SysTimeIsInPast),
             cmp::Ordering::Greater => {
-                self.timestamp_last = time;
+                self.timestamp_last = timestamp;
                 self.sequence = 0;
-                Ok(FID::new(time, 0, self.generator).unwrap())
+                Ok(FID::new(timestamp, 0, self.generator).unwrap())
             }
             cmp::Ordering::Equal => {
-                if (self.sequence + 1) >= 1 << 11 {
+                if (self.sequence + 1) >= 1 << lim::SEQUENCE_LENGTH {
                     if self.wait_sequence {
-                        thread::sleep(time::Duration::from_millis(if self.timestamp_in_seconds {
-                            100
-                        } else {
-                            1
-                        }));
+                        loop {
+                            if let Ok(duration_since) = SystemTime::now().duration_since(sys_time) {
+                                if self.timestamp_in_seconds {
+                                    if duration_since.as_secs() > 0 {
+                                        break;
+                                    } else {
+                                        thread::sleep(time::Duration::from_millis(10));
+                                    }
+                                } else {
+                                    if duration_since.subsec_nanos() / 1000 / 1000 > 0 {
+                                        break;
+                                    } else {
+                                        thread::sleep(time::Duration::from_millis(1));
+                                    }
+                                }
+                            } else {
+                                return Err(Error::SysTimeIsInPast);
+                            }
+                        }
                         return self.next();
                     }
                     return Err(Error::SequenceOverflow(self.sequence));
                 }
                 self.sequence += 1;
-                Ok(FID::new(time, self.sequence, self.generator).unwrap())
+                Ok(FID::new(timestamp, self.sequence, self.generator).unwrap())
             }
         }
     }
@@ -178,7 +194,7 @@ mod test {
         assert_eq!(gen.0.generator, 0x272);
         assert_eq!(gen.0.sequence, 0);
         assert_eq!(gen.0.timestamp_last, 0);
-        assert_eq!(gen.0.timestamp_offset, -1483228800);
+        assert_eq!(gen.0.timestamp_offset, TIMESTAMP_OFFSET);
         assert_eq!(gen.0.wait_sequence, true);
         let gen = FIDGeneratorBuilder::new(0)
             .sequence(0x436)
@@ -210,7 +226,8 @@ mod test {
     }
 
     #[test]
-    fn sys_time_in_past() {
+    #[allow(non_snake_case)]
+    fn SysTimeIsInPast() {
         let mut lock_sys_time = SystemTime::lock(1483228799 * 1000);
         let mut gen =
             FIDGenerator::new(FIDGeneratorBuilder::new(0x249).wait_sequence(false)).unwrap();
@@ -221,27 +238,25 @@ mod test {
         assert_eq!(gen.next().unwrap().timestamp(), 4);
         lock_sys_time.add(-1);
         assert_eq!(gen.next().unwrap_err(), Error::SysTimeIsInPast);
-        SystemTime::unlock(lock_sys_time);
     }
 
     #[test]
-    fn next() {
-        let lock_sys_time = SystemTime::lock(1483228800 * 1000 + 4398046511103);
+    #[allow(non_snake_case)]
+    fn TimestampOverflow() {
+        let lock_sys_time = SystemTime::lock(TIMESTAMP_OFFSET.abs() * 1000 + 4398046511104);
         let mut gen =
             FIDGenerator::new(FIDGeneratorBuilder::new(0x249).wait_sequence(false)).unwrap();
         assert_eq!(
             gen.next().unwrap_err(),
-            Error::TimestampOverflow(4398046511)
+            Error::TimestampOverflow(4398046511104)
         );
         SystemTime::unlock(lock_sys_time);
+    }
 
-        let lock_sys_time = SystemTime::lock(1483228800 * 1000);
-        let mut gen =
-            FIDGenerator::new(FIDGeneratorBuilder::new(0x249).wait_sequence(false)).unwrap();
-        assert_eq!(gen.next().unwrap().timestamp(), 0);
-        SystemTime::unlock(lock_sys_time);
-
-        let lock_sys_time = SystemTime::lock(1483228800 * 1000 + 2073867450856);
+    #[test]
+    #[allow(non_snake_case)]
+    fn SequenceOverflow() {
+        let lock_sys_time = SystemTime::lock(TIMESTAMP_OFFSET.abs() * 1000 + 2073867450856);
         let mut gen = FIDGenerator::new(
             FIDGeneratorBuilder::new(0x249)
                 .wait_sequence(false)
@@ -256,7 +271,7 @@ mod test {
         assert_eq!(gen.next().unwrap_err(), Error::SequenceOverflow(2047));
         SystemTime::unlock(lock_sys_time);
 
-        let mut lock_sys_time = SystemTime::lock(1483228800 * 1000 + 2073867450856);
+        let mut lock_sys_time = SystemTime::lock(TIMESTAMP_OFFSET.abs() * 1000 + 2073867450856);
         let mut gen =
             FIDGenerator::new(FIDGeneratorBuilder::new(0x249).wait_sequence(false)).unwrap();
         for i in 0..2048 {
@@ -274,7 +289,15 @@ mod test {
             assert_eq!(fid.sequence(), i);
         }
         assert_eq!(gen.next().unwrap_err(), Error::SequenceOverflow(2047));
-        lock_sys_time.add(-1);
-        assert_eq!(gen.next().unwrap_err(), Error::SysTimeIsInPast);
+        SystemTime::unlock(lock_sys_time);
+    }
+
+    #[test]
+    fn next() {
+        let lock_sys_time = SystemTime::lock(TIMESTAMP_OFFSET.abs() * 1000);
+        let mut gen =
+            FIDGenerator::new(FIDGeneratorBuilder::new(0x249).wait_sequence(false)).unwrap();
+        assert_eq!(gen.next().unwrap().timestamp(), 0);
+        SystemTime::unlock(lock_sys_time);
     }
 }
