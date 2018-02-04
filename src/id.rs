@@ -1,25 +1,9 @@
 //! Flower identificator
 
 use std::fmt;
-use std::result;
 use base64;
 
-/// Errors
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub enum Error {
-    /// timestamp overflow
-    TimestampOverflow(u64),
-    /// sequence overflow
-    SequenceOverflow(u16),
-    /// generator overflow
-    GeneratorOverflow(u16),
-    /// slice length not eq 8 bytes
-    WrongSliceSize(usize),
-    /// base64 decode error proxy
-    Base64DecodeError(base64::Error),
-}
-
-pub type Result<T> = result::Result<T, Error>;
+use {Error, Result};
 
 /// Flower identificator struct
 #[derive(PartialEq, PartialOrd, Clone)]
@@ -156,7 +140,7 @@ impl FID {
     ///
     /// # Failures
     /// Error::WrongSliceSize if decoded length != 8
-    /// Error::Base64DecodeError decoding failed
+    /// Error::Base64WrongSymbolError decoding failed
     ///
     /// # Examples
     /// ```
@@ -168,11 +152,8 @@ impl FID {
     /// );
     /// ```
     pub fn from_b64(val: &[u8]) -> Result<FID> {
-        let vec = base64::decode(val, Some(base64::Error::Padding));
-        match vec {
-            Ok(vec) => FID::from_slice(&vec),
-            Err(x) => Err(Error::Base64DecodeError(x)),
-        }
+        let vec = base64::decode(val, Some(Error::Base64PaddingError))?;
+        FID::from_slice(&vec)
     }
 
     /// timestamp getter

@@ -2,27 +2,13 @@
 use std::cmp;
 use std::time;
 use std::thread;
-use std::result;
 use id::FID;
 #[cfg(not(test))]
 use std::time::{SystemTime, UNIX_EPOCH};
 #[cfg(test)]
 use stub_time_systemtime::{SystemTime, UNIX_EPOCH};
 
-/// Errors
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub enum Error {
-    /// timestamp overflow
-    TimestampOverflow(u64),
-    /// sequence overflow
-    SequenceOverflow(u16),
-    /// generator overflow
-    GeneratorOverflow(u16),
-    /// system time is in past
-    SysTimeIsInPast,
-}
-
-pub type Result<T> = result::Result<T, Error>;
+use {Error, Result};
 
 /// Flower identificator generator
 #[derive(Debug, Clone)]

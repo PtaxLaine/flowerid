@@ -1,7 +1,6 @@
 //! Base64 encoder/decoder
 
-use std::fmt;
-use std::error;
+use {Error, Result};
 
 static ALPHABET: [u8; 64] = [
     b'A', b'B', b'C', b'D', b'E', b'F', b'G', b'H', b'I', b'J', b'K', b'L', b'M', b'N', b'O', b'P',
@@ -15,29 +14,6 @@ static ALPHABET_SAFE: [u8; 64] = [
     b'g', b'h', b'i', b'j', b'k', b'l', b'm', b'n', b'o', b'p', b'q', b'r', b's', b't', b'u', b'v',
     b'w', b'x', b'y', b'z', b'0', b'1', b'2', b'3', b'4', b'5', b'6', b'7', b'8', b'9', b'-', b'_',
 ];
-
-/// Decode errors
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub enum Error {
-    /// padding error
-    Padding,
-    /// bad symbol error
-    WrongSymbol,
-    /// (only ignore mode) combine Padding & WrongSymbol
-    PaddingWrongSymbol,
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
-
-impl error::Error for Error {
-    fn description(&self) -> &str {
-        "base64 decoding error"
-    }
-}
 
 /// Encode bytes
 /// # Examples
@@ -121,22 +97,23 @@ fn _encode(data: &[u8], padding: bool, aplhabet: &[u8; 64]) -> Vec<u8> {
 /// Decode bytes
 ///
 /// # Failures
-/// Error::{Padding,WrongSymbol}
+/// Error::{Base64PaddingError,Base64WrongSymbolError}
 ///
 /// # Examples
 ///
 /// ```
-/// use flowerid::base64::{decode, Error};
+/// use flowerid::Error;
+/// use flowerid::base64::decode;
 /// assert_eq!(decode(b"Zm9vIGJhcg==", None).unwrap(), b"foo bar");
 /// assert_eq!(decode(b"++//", None).unwrap(), b"\xfb\xef\xff");
 /// assert_eq!(decode(b"--__", None).unwrap(), b"\xfb\xef\xff");
 /// assert!(decode(b"Zm9vIGJhcg", None).is_err());
 /// assert!(decode(b"Zm9vIGJhcg!", None).is_err());
-/// assert_eq!(decode(b"Zm9vIGJhcg", Some(Error::Padding)).unwrap(), b"foo bar");
-/// assert_eq!(decode(b"Zm9vIGJh!", Some(Error::WrongSymbol)).unwrap(), b"foo ba");
-/// assert_eq!(decode(b"Zm9vIGJhcg!", Some(Error::PaddingWrongSymbol)).unwrap(), b"foo bar");
+/// assert_eq!(decode(b"Zm9vIGJhcg", Some(Error::Base64PaddingError)).unwrap(), b"foo bar");
+/// assert_eq!(decode(b"Zm9vIGJh!", Some(Error::Base64WrongSymbolError)).unwrap(), b"foo ba");
+/// assert_eq!(decode(b"Zm9vIGJhcg!", Some(Error::Base64PaddingWrongSymbolError)).unwrap(), b"foo bar");
 /// ```
-pub fn decode(data: &[u8], ignore_error: Option<Error>) -> Result<Vec<u8>, Error> {
+pub fn decode(data: &[u8], ignore_error: Option<Error>) -> Result<Vec<u8>> {
     let mut result = Vec::<u8>::with_capacity((data.len() / 4) * 3);
     let mut i = 0;
     while i < data.len() {
@@ -170,23 +147,25 @@ pub fn decode(data: &[u8], ignore_error: Option<Error>) -> Result<Vec<u8>, Error
                 group |= (x as u32) << (18 - 6 * j);
             } else {
                 if let Some(ignore_error) = ignore_error {
-                    if ignore_error == Error::WrongSymbol
-                        || ignore_error == Error::PaddingWrongSymbol
+                    if ignore_error == Error::Base64WrongSymbolError
+                        || ignore_error == Error::Base64PaddingWrongSymbolError
                     {
                         break;
                     }
                 }
-                return Err(Error::WrongSymbol);
+                return Err(Error::Base64WrongSymbolError);
             }
             length += 6;
         }
         if (length > 0 && length + padding != 24) || padding > 18 {
             if let Some(ignore_error) = ignore_error {
-                if ignore_error != Error::Padding && ignore_error != Error::PaddingWrongSymbol {
-                    return Err(Error::Padding);
+                if ignore_error != Error::Base64PaddingError
+                    && ignore_error != Error::Base64PaddingWrongSymbolError
+                {
+                    return Err(Error::Base64PaddingError);
                 }
             } else {
-                return Err(Error::Padding);
+                return Err(Error::Base64PaddingError);
             }
         }
         for j in 0..3 {
@@ -198,7 +177,7 @@ pub fn decode(data: &[u8], ignore_error: Option<Error>) -> Result<Vec<u8>, Error
         }
         i += 4;
         if padding > 0 && i < data.len() {
-            return Err(Error::Padding);
+            return Err(Error::Base64PaddingError);
         }
     }
     Ok(result)
@@ -273,15 +252,21 @@ mod test {
             &data_full_assert
         );
         assert_eq!(
-            &super::decode(b"AQ", Some(DE::Padding)).unwrap(),
+            &super::decode(b"AQ", Some(DE::Base64PaddingError)).unwrap(),
             &data_one_assert
         );
         assert_eq!(
-            &super::decode(b"ASM", Some(DE::Padding)).unwrap(),
+            &super::decode(b"ASM", Some(DE::Base64PaddingError)).unwrap(),
             &data_two_assert
         );
-        assert_eq!(&super::decode(b"ASM", None).unwrap_err(), &DE::Padding);
-        assert_eq!(&super::decode(b"ASM ", None).unwrap_err(), &DE::WrongSymbol);
+        assert_eq!(
+            &super::decode(b"ASM", None).unwrap_err(),
+            &DE::Base64PaddingError
+        );
+        assert_eq!(
+            &super::decode(b"ASM ", None).unwrap_err(),
+            &DE::Base64WrongSymbolError
+        );
         assert_eq!(&super::decode(b"++//", None).unwrap(), b"\xfb\xef\xff");
         assert_eq!(&super::decode(b"--__", None).unwrap(), b"\xfb\xef\xff");
     }
