@@ -12,12 +12,15 @@ pub struct FID(u64);
 
 impl FID {
     /// Create FID from components
+    ///
     /// timestamp - 42 bits value
     /// sequence  - 11 bits value
     /// generator - 10 bits value
     ///
     /// # Failures
-    /// Error::{TimestampOverflow,SequenceOverflow,GeneratorOverflow}
+    /// `Error::TimestampOverflow`
+    /// `Error::SequenceOverflow`
+    /// `Error::GeneratorOverflow`
     ///
     /// # Examples
     /// ```
@@ -97,7 +100,7 @@ impl FID {
     /// Deserialize FID
     ///
     /// # Failures
-    /// Error::WrongSliceSize if slice length != 8
+    /// `Error::WrongSliceSize` if slice length != 8
     ///
     /// # Examples
     /// ```
@@ -144,8 +147,8 @@ impl FID {
     /// Deserialize FID from base64
     ///
     /// # Failures
-    /// Error::WrongSliceSize if decoded length != 8
-    /// Error::Base64WrongSymbolError decoding failed
+    /// `Error::WrongSliceSize` if decoded length != 8
+    /// `Error::Base64WrongSymbolError` decoding failed
     ///
     /// # Examples
     /// ```

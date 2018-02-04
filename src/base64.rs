@@ -97,7 +97,8 @@ fn _encode(data: &[u8], padding: bool, aplhabet: &[u8; 64]) -> Vec<u8> {
 /// Decode bytes
 ///
 /// # Failures
-/// Error::{Base64PaddingError,Base64WrongSymbolError}
+/// `Error::Base64PaddingError`
+/// `Error::Base64WrongSymbolError`
 ///
 /// # Examples
 ///

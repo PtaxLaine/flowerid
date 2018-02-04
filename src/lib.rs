@@ -1,9 +1,22 @@
+//! see `/README.md` for additional information
+//!
+//! # Examples
+//! ```
+//! use flowerid::FID;
+//! use flowerid::generator::FIDGeneratorBuilder;
+//!
+//! let mut gen = FIDGeneratorBuilder::new(0x12c).build().unwrap();
+//! let fid: FID = gen.next().unwrap();
+//! println!("{}", fid);
+//! println!("{:?}", fid);
+//! ```
+
 pub mod id;
 pub mod generator;
 pub mod base64;
 pub mod config;
 #[cfg(test)]
-mod stub_time_systemtime;
+mod stubs;
 
 pub use id::FID;
 

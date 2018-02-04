@@ -7,7 +7,7 @@ use config as cfg;
 #[cfg(not(test))]
 use std::time::{SystemTime, UNIX_EPOCH};
 #[cfg(test)]
-use stub_time_systemtime::{SystemTime, UNIX_EPOCH};
+use stubs::systemtime::{SystemTime, UNIX_EPOCH};
 
 use {Error, Result};
 
@@ -83,10 +83,18 @@ impl FIDGeneratorBuilder {
     }
 
     /// Set wait sequence
+    ///
     /// If wait_sequence is true and sequence overflowed, generator wait till next timetamp has been generated
     pub fn wait_sequence(mut self, val: bool) -> FIDGeneratorBuilder {
         self.0.wait_sequence = val;
         self
+    }
+
+    /// Build `FIDGenerator`
+    ///
+    /// alike `FIDGenerator::new(self)`
+    pub fn build(self) -> Result<FIDGenerator> {
+        FIDGenerator::new(self)
     }
 }
 
@@ -94,9 +102,9 @@ impl FIDGenerator {
     /// Create new generator
     ///
     /// # Failures
-    /// Error::GeneratorOverflow
-    /// Error::SequenceOverflow
-    /// Error::TimestampOverflow
+    /// `Error::GeneratorOverflow`
+    /// `Error::SequenceOverflow`
+    /// `Error::TimestampOverflow`
     pub fn new(cfg: FIDGeneratorBuilder) -> Result<FIDGenerator> {
         if cfg.0.generator >= 1 << cfg::GENERATOR_LENGTH {
             Err(Error::GeneratorOverflow(cfg.0.generator))
@@ -112,9 +120,9 @@ impl FIDGenerator {
     /// Generate next id
     ///
     /// # Failures
-    /// Error::SequenceOverflow
-    /// Error::SysTimeIsInPast
-    /// Error::TimestampOverflow
+    /// `Error::SequenceOverflow`
+    /// `Error::SysTimeIsInPast`
+    /// `Error::TimestampOverflow`
     ///
     /// # Examples
     /// ```

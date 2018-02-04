@@ -1,7 +1,8 @@
 //! Flower id configuration
-//! See /README.md for addotation information
-//! *WARNING* if you edit this parametrs rustdoc-test will been broken
-//! *WARNING* don't forget edit self::test_constants::* for successful passing of tests
+//!
+//! See `/README.md` for addotation information
+//! **WARNING** if you edit this parametrs rustdoc-test will been broken
+//! **WARNING** don't forget edit `self::test_constants::*` for successful passing of tests
 
 /// Genrator length (in bits)
 pub const GENERATOR_LENGTH: u16 = 10;
@@ -11,6 +12,7 @@ pub const SEQUENCE_LENGTH: u16 = 11;
 pub const TIMESTAMP_LENGTH: u64 = 42;
 
 /// Default `FIDGeneratorBuilder` values
+///
 /// All values can be modify in runtime see `FIDGeneratorBuilder`
 pub(crate) mod gbuilder_defaults {
     /// Default unix timestamp offset (in seconds)
