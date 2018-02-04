@@ -13,7 +13,7 @@ fn usage() {
         let mut gen = FIDGenerator::new(
             FIDGeneratorBuilder::new(0x47)
                 .timestamp_offset(-(offset.as_secs() as i64))
-                .timestamp_in_seconds(true),
+                .timestamp_in_seconds(),
         ).unwrap();
         for _ in 0..100 {
             let fid = gen.next().unwrap();

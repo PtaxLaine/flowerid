@@ -2,7 +2,7 @@
 
 use std::fmt;
 use base64;
-use limits as lim;
+use config as cfg;
 
 use {Error, Result};
 
@@ -29,16 +29,16 @@ impl FID {
     /// );
     /// ```
     pub fn new(timestamp: u64, sequence: u16, generator: u16) -> Result<FID> {
-        if timestamp >= 1 << lim::TIMESTAMP_LENGTH {
+        if timestamp >= 1 << cfg::TIMESTAMP_LENGTH {
             Err(Error::TimestampOverflow(timestamp))
-        } else if sequence >= 1 << lim::SEQUENCE_LENGTH {
+        } else if sequence >= 1 << cfg::SEQUENCE_LENGTH {
             Err(Error::SequenceOverflow(sequence))
-        } else if generator >= 1 << lim::GENERATOR_LENGTH {
+        } else if generator >= 1 << cfg::GENERATOR_LENGTH {
             Err(Error::GeneratorOverflow(generator))
         } else {
             Ok(FID(
-                (timestamp << (lim::SEQUENCE_LENGTH + lim::GENERATOR_LENGTH))
-                    | ((sequence as u64) << lim::GENERATOR_LENGTH)
+                (timestamp << (cfg::SEQUENCE_LENGTH + cfg::GENERATOR_LENGTH))
+                    | ((sequence as u64) << cfg::GENERATOR_LENGTH)
                     | (generator as u64),
             ))
         }
@@ -173,7 +173,7 @@ impl FID {
     /// );
     /// ```
     pub fn timestamp(&self) -> u64 {
-        (self.0 & lim::TIMESTAMP_MASK) >> (lim::GENERATOR_LENGTH + lim::SEQUENCE_LENGTH)
+        (self.0 & cfg::TIMESTAMP_MASK) >> (cfg::GENERATOR_LENGTH + cfg::SEQUENCE_LENGTH)
     }
 
     /// sequence getter
@@ -188,7 +188,7 @@ impl FID {
     /// );
     /// ```
     pub fn sequence(&self) -> u16 {
-        ((self.0 & lim::SEQUENCE_MASK) >> lim::GENERATOR_LENGTH) as u16
+        ((self.0 & cfg::SEQUENCE_MASK) >> cfg::GENERATOR_LENGTH) as u16
     }
 
     /// generator getter
@@ -203,7 +203,7 @@ impl FID {
     /// );
     /// ```
     pub fn generator(&self) -> u16 {
-        (self.0 & lim::GENERATOR_MASK) as u16
+        (self.0 & cfg::GENERATOR_MASK) as u16
     }
 }
 
@@ -246,69 +246,78 @@ mod test {
 
     #[test]
     fn new_getters() {
-        let timestamp = 0x1f37b5bfdfa_u64;
-        let sequence = 0x02f8_u16;
-        let generator = 0x01cc_u16;
+        let timestamp = cfg::test_constants::TIMESTAMP;
+        let sequence = cfg::test_constants::SEQUENCE;
+        let generator = cfg::test_constants::GENERATOR;
         let fid = FID::new(timestamp, sequence, generator).unwrap();
         assert_eq!(fid.timestamp(), timestamp);
         assert_eq!(fid.sequence(), sequence);
         assert_eq!(fid.generator(), generator);
         assert_eq!(
-            FID::new(1 << 42, 0, 0).unwrap_err(),
-            Error::TimestampOverflow(1 << 42)
+            FID::new(1 << cfg::TIMESTAMP_LENGTH, 0, 0).unwrap_err(),
+            Error::TimestampOverflow(1 << cfg::TIMESTAMP_LENGTH)
         );
         assert_eq!(
-            FID::new(0, 1 << 11, 0).unwrap_err(),
-            Error::SequenceOverflow(1 << 11)
+            FID::new(0, 1 << cfg::SEQUENCE_LENGTH, 0).unwrap_err(),
+            Error::SequenceOverflow(1 << cfg::SEQUENCE_LENGTH)
         );
         assert_eq!(
-            FID::new(0, 0, 1 << 10).unwrap_err(),
-            Error::GeneratorOverflow(1 << 10)
+            FID::new(0, 0, 1 << cfg::GENERATOR_LENGTH).unwrap_err(),
+            Error::GeneratorOverflow(1 << cfg::GENERATOR_LENGTH)
         );
     }
 
     #[test]
     fn bytes() {
-        let timestamp = 0x1f37b5bfdfa_u64;
-        let sequence = 0x02f8_u16;
-        let generator = 0x01cc_u16;
+        let timestamp = cfg::test_constants::TIMESTAMP;
+        let sequence = cfg::test_constants::SEQUENCE;
+        let generator = cfg::test_constants::GENERATOR;
         let fid = FID::new(timestamp, sequence, generator).unwrap();
         let bytes = fid.to_bytes();
         let fid_from_bytes = FID::from_bytes(&bytes);
         let fid_from_slice = FID::from_slice(&bytes).unwrap();
-        assert_eq!(&&bytes, &b">ok\x7f\xbfK\xe1\xcc");
+        assert_eq!(&&bytes, &cfg::test_constants::BIN);
         assert_eq!(fid, fid_from_bytes);
         assert_eq!(fid, fid_from_slice);
     }
 
     #[test]
     fn base64() {
-        let timestamp = 0x1f37b5bfdfa_u64;
-        let sequence = 0x02f8_u16;
-        let generator = 0x01cc_u16;
+        let timestamp = cfg::test_constants::TIMESTAMP;
+        let sequence = cfg::test_constants::SEQUENCE;
+        let generator = cfg::test_constants::GENERATOR;
         let fid = FID::new(timestamp, sequence, generator).unwrap();
-        assert_eq!(&&fid.to_b64(), &b"Pm9rf79L4cw");
+        assert_eq!(&&fid.to_b64(), &cfg::test_constants::B64);
         assert_eq!(FID::from_b64(&fid.to_b64()).unwrap(), fid);
     }
 
     #[test]
     fn fmt() {
-        let timestamp = 0x1f37b5bfdfa_u64;
-        let sequence = 0x02f8_u16;
-        let generator = 0x01cc_u16;
+        let timestamp = cfg::test_constants::TIMESTAMP;
+        let sequence = cfg::test_constants::SEQUENCE;
+        let generator = cfg::test_constants::GENERATOR;
         let fid = FID::new(timestamp, sequence, generator).unwrap();
-        assert_eq!(format!("{}", fid), "Pm9rf79L4cw");
+        assert_eq!(
+            format!("{}", fid),
+            String::from_utf8_lossy(cfg::test_constants::B64)
+        );
         assert_eq!(
             format!("{:?}", fid),
-            "FID{ id: \"Pm9rf79L4cw\"; ts: 2145258307066; seq: 760; gen: 460 }"
+            format!(
+                "FID{{ id: \"{}\"; ts: {}; seq: {}; gen: {} }}",
+                String::from_utf8_lossy(cfg::test_constants::B64),
+                timestamp,
+                sequence,
+                generator
+            )
         );
     }
 
     #[test]
     fn from() {
-        let timestamp = 0x1f37b5bfdfa_u64;
-        let sequence = 0x02f8_u16;
-        let generator = 0x01cc_u16;
+        let timestamp = cfg::test_constants::TIMESTAMP;
+        let sequence = cfg::test_constants::SEQUENCE;
+        let generator = cfg::test_constants::GENERATOR;
         let fid = FID::new(timestamp, sequence, generator).unwrap();
         let from_fid: u64 = From::from(fid.clone());
         let from_64: FID = From::from(from_fid);

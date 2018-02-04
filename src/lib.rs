@@ -1,9 +1,11 @@
 pub mod id;
 pub mod generator;
 pub mod base64;
-mod limits;
+pub mod config;
 #[cfg(test)]
 mod stub_time_systemtime;
+
+pub use id::FID;
 
 use std::result;
 use std::fmt;
