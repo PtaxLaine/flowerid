@@ -1,0 +1,6 @@
+[submodule "bindings/flowerid_cpp/cmake"]
+	path = bindings/flowerid_cpp/cmake
+	url = https://github.com/PtaxLaine/rust_cmake
+[submodule "bindings/flowerid_cpp/googletest"]
+	path = bindings/flowerid_cpp/googletest
+	url = https://github.com/google/googletest
