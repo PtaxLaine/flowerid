@@ -1,0 +1,12 @@
+[package]
+name = "flowerid_c"
+version = "0.1.0"
+authors = ["Andrei V <andrei@ptaxa.net>"]
+
+[lib]
+name = "flowerid_c"
+crate-type = ["staticlib"]
+
+[dependencies]
+flowerid = {path = "../../"}
+libc = {version = "0.2"}
