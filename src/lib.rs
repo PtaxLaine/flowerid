@@ -15,7 +15,6 @@ pub mod id;
 pub mod generator;
 pub mod base64;
 pub mod config;
-#[cfg(test)]
 mod stubs;
 
 pub use id::FID;

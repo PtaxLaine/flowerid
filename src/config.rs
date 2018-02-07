@@ -14,7 +14,7 @@ pub const TIMESTAMP_LENGTH: u64 = 42;
 /// Default `FIDGeneratorBuilder` values
 ///
 /// All values can be modify in runtime see `FIDGeneratorBuilder`
-pub(crate) mod gbuilder_defaults {
+pub mod gbuilder_defaults {
     /// Default unix timestamp offset (in seconds)
     pub const TIMESTAMP_OFFSET: i64 = -1483228800;
     /// Timestamp in seconds?
@@ -24,7 +24,6 @@ pub(crate) mod gbuilder_defaults {
 }
 
 /// Contants for tests
-#[cfg(test)]
 #[cfg(test)]
 pub(crate) mod test_constants {
     pub const GENERATOR: u16 = 0x01cc_u16;

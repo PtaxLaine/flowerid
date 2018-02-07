@@ -138,7 +138,7 @@ impl FID {
     /// );
     /// ```
     pub fn to_b64(&self) -> [u8; 11] {
-        let vec = base64::encode_without_pading(&self.to_bytes());
+        let vec = base64::urlsafe_encode_without_pading(&self.to_bytes());
         [
             vec[0], vec[1], vec[2], vec[3], vec[4], vec[5], vec[6], vec[7], vec[8], vec[9], vec[10]
         ]
