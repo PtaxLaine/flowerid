@@ -1,5 +1,4 @@
 cmake_minimum_required(VERSION 3.2)
-set( CMAKE_GENERATOR_PLATFORM x64)
 enable_testing()
 
 project(flowerid_cxx CXX)

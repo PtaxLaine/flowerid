@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 from setuptools import setup
 from setuptools.extension import Extension
 from Cython.Build import cythonize
@@ -7,11 +9,11 @@ import os
 import locale
 
 c_libs_win = ['Ws2_32', 'Userenv', 'Advapi32', 'Shell32']
-c_libs_nix = []
+c_libs_nix = ['pthread', 'dl']
 extensions = [
     Extension("pyflowerid", ["pyflowerid.pyx"],
         include_dirs = ['../flowerid_c/include'],
-        libraries = ['flowerid_c'] + c_libs_win if os.name == 'nt' else c_libs_nix,
+        libraries = ['flowerid_c'] + (c_libs_win if os.name == 'nt' else c_libs_nix),
         library_dirs = ['target/release'])
 ]
 
@@ -19,12 +21,12 @@ def build_rust():
     cargo_target = os.path.join(os.getcwd(), 'target')
     os.putenv('CARGO_TARGET_DIR', cargo_target)
     os.makedirs(cargo_target, exist_ok=True)
-    subprocess.run( \
+    proc = subprocess.Popen( \
         ['cargo', 'build', '--release'], \
-        cwd='../flowerid_c', \
-        encoding='utf-8', \
-        check = True
+        cwd='../flowerid_c' \
         )
+    proc.wait()
+    assert proc.returncode == 0
     pass
 
 class BuildRust(setuptools.command.build_ext.build_ext):
