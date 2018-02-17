@@ -131,13 +131,23 @@ impl FIDGenerator {
     /// println!("{}", gen.next().unwrap());
     /// ```
     pub fn next(&mut self) -> Result<FID> {
-        fn convert_time(in_sec: bool, time: &time::Duration) -> u64 {
-            if in_sec {
+        let timestamp = self.new_timestamp()?;
+
+        match timestamp.cmp(&self.timestamp_last) {
+            cmp::Ordering::Less => Err(Error::SysTimeIsInPast),
+            cmp::Ordering::Greater => self.next_timestamp(timestamp),
+            cmp::Ordering::Equal => self.next_sequence(timestamp),
+        }
+    }
+
+    fn new_timestamp(&self) -> Result<u64> {
+        let convert_time = |time: &time::Duration| -> u64 {
+            if self.timestamp_in_seconds {
                 time.as_secs()
             } else {
                 time.as_secs() * 1000 + (time.subsec_nanos() / 1000 / 1000) as u64
             }
-        }
+        };
 
         let mut offset = UNIX_EPOCH;
         if self.timestamp_offset < 0 {
@@ -145,53 +155,63 @@ impl FIDGenerator {
         } else {
             offset -= time::Duration::from_secs(self.timestamp_offset.abs() as u64);
         }
+
         let sys_time = SystemTime::now();
         if sys_time < offset {
             return Err(Error::SysTimeIsInPast);
         }
+
         let timestamp = sys_time
             .duration_since(offset)
             .map_err(|_| Error::SysTimeIsInPast)?;
-        let timestamp = convert_time(self.timestamp_in_seconds, &timestamp);
-        if timestamp >= 1 << cfg::TIMESTAMP_LENGTH {
-            return Err(Error::TimestampOverflow(timestamp));
+        let timestamp = convert_time(&timestamp);
+        if timestamp >= (1 << cfg::TIMESTAMP_LENGTH) {
+            Err(Error::TimestampOverflow(timestamp))
+        } else {
+            Ok(timestamp)
         }
-        match timestamp.cmp(&self.timestamp_last) {
-            cmp::Ordering::Less => Err(Error::SysTimeIsInPast),
-            cmp::Ordering::Greater => {
-                self.timestamp_last = timestamp;
-                self.sequence = 0;
-                Ok(FID::new(timestamp, 0, self.generator).unwrap())
-            }
-            cmp::Ordering::Equal => {
-                if (self.sequence + 1) >= 1 << cfg::SEQUENCE_LENGTH {
-                    if self.wait_sequence {
-                        loop {
-                            if let Ok(duration_since) = SystemTime::now().duration_since(sys_time) {
-                                if self.timestamp_in_seconds {
-                                    if duration_since.as_secs() > 0 {
-                                        break;
-                                    } else {
-                                        thread::sleep(time::Duration::from_millis(10));
-                                    }
-                                } else {
-                                    if duration_since.subsec_nanos() / 1000 / 1000 > 0 {
-                                        break;
-                                    } else {
-                                        thread::sleep(time::Duration::from_millis(1));
-                                    }
-                                }
-                            } else {
-                                return Err(Error::SysTimeIsInPast);
-                            }
-                        }
-                        return self.next();
+    }
+
+    fn next_timestamp(&mut self, timestamp: u64) -> Result<FID> {
+        self.timestamp_last = timestamp;
+        self.sequence = 0;
+        FID::new(timestamp, 0, self.generator)
+    }
+
+    fn wait_next_timestamp(&self) -> Result<()> {
+        let start_time = SystemTime::now();
+        loop {
+            if let Ok(duration_since) = SystemTime::now().duration_since(start_time) {
+                if self.timestamp_in_seconds {
+                    if duration_since.as_secs() > 0 {
+                        return Ok(());
+                    } else {
+                        thread::sleep(time::Duration::from_millis(10));
                     }
-                    return Err(Error::SequenceOverflow(self.sequence));
+                } else {
+                    if duration_since.subsec_nanos() / 1000 / 1000 > 0 {
+                        return Ok(());
+                    } else {
+                        thread::sleep(time::Duration::from_millis(1));
+                    }
                 }
-                self.sequence += 1;
-                Ok(FID::new(timestamp, self.sequence, self.generator).unwrap())
+            } else {
+                return Err(Error::SysTimeIsInPast);
             }
+        }
+    }
+
+    fn next_sequence(&mut self, timestamp: u64) -> Result<FID> {
+        if (self.sequence + 1) >= (1 << cfg::SEQUENCE_LENGTH) {
+            if self.wait_sequence {
+                self.wait_next_timestamp()?;
+                return self.next();
+            } else {
+                return Err(Error::SequenceOverflow(self.sequence));
+            }
+        } else {
+            self.sequence += 1;
+            return FID::new(timestamp, self.sequence, self.generator);
         }
     }
 }
