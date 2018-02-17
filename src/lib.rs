@@ -38,6 +38,8 @@ pub enum Error {
     WrongSliceSize(usize),
     /// padding error
     Base64PaddingError,
+    /// (en|de)code_into buffer too small
+    Base64BufferTooSmall,
     /// bad symbol error
     Base64WrongSymbolError,
     /// (only ignore mode) combine Padding & WrongSymbol

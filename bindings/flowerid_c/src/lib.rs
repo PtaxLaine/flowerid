@@ -49,6 +49,7 @@ fn from_errori32(res: Error) -> i32 {
         SysTimeIsInPast => From::from(RESULT::SysTimeIsInPast),
         WrongSliceSize(_) => From::from(RESULT::WrongSliceSize),
         Base64PaddingError => From::from(RESULT::Base64DecodeError),
+        Base64BufferTooSmall => From::from(RESULT::Base64DecodeError),
         Base64WrongSymbolError => From::from(RESULT::Base64DecodeError),
         Base64PaddingWrongSymbolError => From::from(RESULT::Base64DecodeError),
     }
@@ -93,7 +94,7 @@ pub extern "C" fn flowerid_to_bytes(
     if buffer_size != 8 {
         return From::from(RESULT::BufferWrongSize);
     }
-    let result = id::FID::from( this ).to_bytes();
+    let result = id::FID::from(this).to_bytes();
     for (i, x) in result.iter().enumerate() {
         unsafe {
             *buffer.offset(i as isize) = *x;

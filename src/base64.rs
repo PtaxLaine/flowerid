@@ -26,6 +26,9 @@ static ALPHABET_SAFE: [u8; 64] = [
 pub fn encode(data: &[u8]) -> Vec<u8> {
     _encode(data, true, &ALPHABET)
 }
+pub fn encode_into(data: &[u8], buffer: &mut [u8]) -> Result<usize> {
+    _encode_into(data, true, &ALPHABET, buffer)
+}
 
 /// Encode bytes URL safe
 /// # Examples
@@ -37,6 +40,9 @@ pub fn encode(data: &[u8]) -> Vec<u8> {
 /// ```
 pub fn urlsafe_encode(data: &[u8]) -> Vec<u8> {
     _encode(data, true, &ALPHABET_SAFE)
+}
+pub fn urlsafe_encode_into(data: &[u8], buffer: &mut [u8]) -> Result<usize> {
+    _encode_into(data, true, &ALPHABET_SAFE, buffer)
 }
 
 /// Encode bytes without padding
@@ -50,6 +56,9 @@ pub fn urlsafe_encode(data: &[u8]) -> Vec<u8> {
 pub fn encode_without_pading(data: &[u8]) -> Vec<u8> {
     _encode(data, false, &ALPHABET)
 }
+pub fn encode_without_pading_into(data: &[u8], buffer: &mut [u8]) -> Result<usize> {
+    _encode_into(data, false, &ALPHABET, buffer)
+}
 
 /// Encode bytes URL safe without padding
 /// # Examples
@@ -62,36 +71,79 @@ pub fn encode_without_pading(data: &[u8]) -> Vec<u8> {
 pub fn urlsafe_encode_without_pading(data: &[u8]) -> Vec<u8> {
     _encode(data, false, &ALPHABET_SAFE)
 }
+pub fn urlsafe_encode_without_pading_into(data: &[u8], buffer: &mut [u8]) -> Result<usize> {
+    _encode_into(data, false, &ALPHABET_SAFE, buffer)
+}
+
+fn _encode_into(
+    data: &[u8],
+    padding: bool,
+    aplhabet: &[u8; 64],
+    buffer: &mut [u8],
+) -> Result<usize> {
+    let need_padding = data.len() % 3 != 0;
+    let padding_length = if need_padding {
+        Some((24 - (data.len() * 8) % 24) / 8)
+    } else {
+        None
+    };
+    let mut length = 0usize;
+    {
+        let mut buffer_it = buffer.iter_mut();
+        let mut push = |ch: u8| -> Option<()> {
+            if let Some(item) = buffer_it.next() {
+                *item = ch;
+                Some(())
+            } else {
+                None
+            }
+        };
+        let mut i = 0usize;
+        while i < data.len() {
+            let mut group = 0u32;
+            let mut group_len = 0;
+            for j in 0..3 {
+                if j + i >= data.len() {
+                    break;
+                }
+                group |= (data[j + i] as u32) << (16 - 8 * j);
+                group_len += 1;
+            }
+            for j in 0..4 {
+                let tmp = push(aplhabet[((group >> (18 - 6 * j)) & 0x3f) as usize]);
+                if let Some(_) = tmp {
+                    length += 1;
+                } else {
+                    if let Some(padding_length) = padding_length {
+                        if !padding && padding_length + i + group_len >= data.len() {
+                            break;
+                        }
+                    } else {
+                        return Err(Error::Base64BufferTooSmall);
+                    }
+                }
+            }
+            i += 3;
+        }
+    }
+    if let Some(padding_length) = padding_length {
+        for i in 0..padding_length {
+            if padding {
+                buffer[length - 1 - i] = b'=';
+            } else {
+                length -= 1;
+            }
+        }
+    }
+    Ok(length)
+}
 
 fn _encode(data: &[u8], padding: bool, aplhabet: &[u8; 64]) -> Vec<u8> {
-    let mut result = Vec::<u8>::with_capacity(4 * (data.len() / 3));
-    let mut i = 0usize;
-    while i < data.len() {
-        let mut group = 0u32;
-        for j in 0..3 {
-            if j + i >= data.len() {
-                break;
-            }
-            group |= (data[j + i] as u32) << (16 - 8 * j);
-        }
-        for j in 0..4 {
-            result.push(aplhabet[((group >> (18 - 6 * j)) & 0x3f) as usize]);
-        }
-        i += 3;
-    }
-    if data.len() % 3 != 0 {
-        i = 0;
-        while i < 24 - (data.len() * 8) % 24 {
-            if padding {
-                let rlen = result.len();
-                result[rlen - 1 - i / 8] = b'=';
-            } else {
-                result.pop();
-            }
-            i += 8;
-        }
-    }
-    result
+    let full_size = 4 * ((data.len() / 3) + 1);
+    let mut result = vec![0u8; full_size];
+    let real_size = _encode_into(data, padding, aplhabet, &mut result).unwrap();
+    result.resize(real_size, 0);
+    return result;
 }
 
 /// Decode bytes
@@ -115,73 +167,99 @@ fn _encode(data: &[u8], padding: bool, aplhabet: &[u8; 64]) -> Vec<u8> {
 /// assert_eq!(decode(b"Zm9vIGJhcg!", Some(Error::Base64PaddingWrongSymbolError)).unwrap(), b"foo bar");
 /// ```
 pub fn decode(data: &[u8], ignore_error: Option<Error>) -> Result<Vec<u8>> {
-    let mut result = Vec::<u8>::with_capacity((data.len() / 4) * 3);
+    let full_size = (data.len() / 4 + 1) * 3;
+    let mut result = vec![0u8; full_size];
+    let real_size = decode_into(data, ignore_error, &mut result)?;
+    result.resize(real_size, 0);
+    return Ok(result);
+}
+
+fn decode_char(x: u8) -> Option<u8> {
+    if b'A' <= x && x <= b'Z' {
+        Some(x - b'A')
+    } else if b'a' <= x && x <= b'z' {
+        Some(x - b'a' + 26)
+    } else if b'0' <= x && x <= b'9' {
+        Some(x - b'0' + 26 * 2)
+    } else if b'-' == x || b'+' == x {
+        Some(0x3e)
+    } else if b'_' == x || b'/' == x {
+        Some(0x3f)
+    } else {
+        None
+    }
+}
+
+pub fn decode_into(data: &[u8], ignore_error: Option<Error>, buffer: &mut [u8]) -> Result<usize> {
     let mut i = 0;
-    while i < data.len() {
-        let mut group = 0u32;
-        let mut length = 0usize;
-        let mut padding = 0usize;
-        for j in 0..4 {
-            if i + j >= data.len() {
-                break;
-            }
-            if data[i + j] == b'=' {
-                padding += 6;
-                continue;
-            }
-            let x = (|x| {
-                if b'A' <= x && x <= b'Z' {
-                    Some(x - b'A')
-                } else if b'a' <= x && x <= b'z' {
-                    Some(x - b'a' + 26)
-                } else if b'0' <= x && x <= b'9' {
-                    Some(x - b'0' + 52)
-                } else if b'-' == x || b'+' == x {
-                    Some(62)
-                } else if b'_' == x || b'/' == x {
-                    Some(63)
-                } else {
-                    None
-                }
-            })(data[i + j]);
-            if let Some(x) = x {
-                group |= (x as u32) << (18 - 6 * j);
+    let mut length_total = 0usize;
+    {
+        let mut buffer_it = buffer.iter_mut();
+        let mut push = |x: u8| -> Option<()> {
+            if let Some(item) = buffer_it.next() {
+                length_total += 1;
+                *item = x;
+                Some(())
             } else {
-                if let Some(ignore_error) = ignore_error {
-                    if ignore_error == Error::Base64WrongSymbolError
-                        || ignore_error == Error::Base64PaddingWrongSymbolError
-                    {
-                        break;
-                    }
-                }
-                return Err(Error::Base64WrongSymbolError);
+                None
             }
-            length += 6;
-        }
-        if (length > 0 && length + padding != 24) || padding > 18 {
-            if let Some(ignore_error) = ignore_error {
-                if ignore_error != Error::Base64PaddingError
-                    && ignore_error != Error::Base64PaddingWrongSymbolError
-                {
+        };
+        while i < data.len() {
+            let mut group = 0u32;
+            let mut length = 0usize;
+            let mut padding = 0usize;
+            for j in 0..4 {
+                if i + j >= data.len() {
+                    break;
+                }
+                if data[i + j] == b'=' {
+                    padding += 6;
+                    continue;
+                }
+                let x = decode_char(data[i + j]);
+                if let Some(x) = x {
+                    group |= (x as u32) << (18 - 6 * j);
+                } else {
+                    if let Some(ignore_error) = ignore_error {
+                        if ignore_error == Error::Base64WrongSymbolError
+                            || ignore_error == Error::Base64PaddingWrongSymbolError
+                        {
+                            break;
+                        }
+                    }
+                    return Err(Error::Base64WrongSymbolError);
+                }
+                length += 6;
+            }
+            if (length > 0 && length + padding != 24) || padding > 18 {
+                if let Some(ignore_error) = ignore_error {
+                    if ignore_error != Error::Base64PaddingError
+                        && ignore_error != Error::Base64PaddingWrongSymbolError
+                    {
+                        return Err(Error::Base64PaddingError);
+                    }
+                } else {
                     return Err(Error::Base64PaddingError);
                 }
-            } else {
+            }
+            for j in 0..3 {
+                if length < 8 {
+                    break;
+                }
+                let tmp = push(((group >> (16 - j * 8))) as u8 & 0xff);
+                if let Some(_) = tmp {
+                    length -= 8;
+                } else {
+                    return Err(Error::Base64BufferTooSmall);
+                }
+            }
+            i += 4;
+            if padding > 0 && i < data.len() {
                 return Err(Error::Base64PaddingError);
             }
         }
-        for j in 0..3 {
-            if length < 8 {
-                break;
-            }
-            result.push(((group >> (16 - j * 8))) as u8 & 0xff);
-            length -= 8;
-        }
-        i += 4;
-        if padding > 0 && i < data.len() {
-            return Err(Error::Base64PaddingError);
-        }
     }
-    Ok(result)
+    Ok(length_total)
 }
 
 #[cfg(test)]

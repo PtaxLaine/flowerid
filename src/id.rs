@@ -3,6 +3,7 @@
 use std::fmt;
 use base64;
 use config as cfg;
+use std::mem;
 
 use {Error, Result};
 
@@ -59,19 +60,11 @@ impl FID {
     /// );
     /// ```
     pub fn to_bytes(&self) -> [u8; 8] {
-        let tmp = self.0.to_be();
         unsafe {
-            let p = &tmp as *const u64 as *const u8;
-            [
-                *p.offset(0),
-                *p.offset(1),
-                *p.offset(2),
-                *p.offset(3),
-                *p.offset(4),
-                *p.offset(5),
-                *p.offset(6),
-                *p.offset(7),
-            ]
+            let mut res: [u8; 8] = mem::uninitialized();
+            let ptr = res.as_mut_ptr() as *mut u64;
+            *ptr = self.0.to_be();
+            return res;
         }
     }
 
@@ -87,14 +80,7 @@ impl FID {
     /// );
     /// ```
     pub fn from_bytes(val: &[u8; 8]) -> FID {
-        let mut tmp = 0u64;
-        unsafe {
-            let p = &mut tmp as *mut u64 as *mut u8;
-            for i in 0..8usize {
-                *p.offset(i as isize) = val[i];
-            }
-        }
-        FID(u64::from_be(tmp))
+        FID::from_slice(val).unwrap()
     }
 
     /// Deserialize FID
@@ -116,14 +102,10 @@ impl FID {
         if val.len() != 8 {
             return Err(Error::WrongSliceSize(val.len()));
         }
-        let mut tmp = 0u64;
         unsafe {
-            let p = &mut tmp as *mut u64 as *mut u8;
-            for i in 0..8usize {
-                *p.offset(i as isize) = val[i];
-            }
+            let tmp = *(val.as_ptr() as *const u64);
+            Ok(FID(u64::from_be(tmp)))
         }
-        Ok(FID(u64::from_be(tmp)))
     }
 
     /// Serialize FID to base64
@@ -138,10 +120,9 @@ impl FID {
     /// );
     /// ```
     pub fn to_b64(&self) -> [u8; 11] {
-        let vec = base64::urlsafe_encode_without_pading(&self.to_bytes());
-        [
-            vec[0], vec[1], vec[2], vec[3], vec[4], vec[5], vec[6], vec[7], vec[8], vec[9], vec[10]
-        ]
+        let mut buffer = [0u8; 11];
+        base64::urlsafe_encode_without_pading_into(&self.to_bytes(), &mut buffer).unwrap();
+        buffer
     }
 
     /// Deserialize FID from base64
@@ -160,8 +141,9 @@ impl FID {
     /// );
     /// ```
     pub fn from_b64(val: &[u8]) -> Result<FID> {
-        let vec = base64::decode(val, Some(Error::Base64PaddingError))?;
-        FID::from_slice(&vec)
+        let mut buffer = [0u8; 8];
+        base64::decode_into(val, Some(Error::Base64PaddingError), &mut buffer)?;
+        Ok(FID::from_bytes(&buffer))
     }
 
     /// timestamp getter
