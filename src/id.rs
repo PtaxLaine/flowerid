@@ -4,6 +4,7 @@ use std::fmt;
 use base64;
 use config as cfg;
 use std::mem;
+use std;
 
 use {Error, Result};
 
@@ -106,6 +107,42 @@ impl FID {
             let tmp = *(val.as_ptr() as *const u64);
             Ok(FID(u64::from_be(tmp)))
         }
+    }
+
+    /// Serialize FID to base64 string
+    ///
+    /// # Examples
+    /// ```
+    /// use flowerid::id::FID;
+    /// let fid = FID::new(0x204dc595637, 0x4ac, 0x12c).unwrap();
+    /// assert_eq!(
+    ///     fid.to_string(),
+    ///     "QJuLKsbysSw"
+    /// );
+    /// ```
+    pub fn to_string(&self) -> String {
+        let b64 = self.to_b64();
+        std::str::from_utf8(&b64).unwrap().to_string()
+    }
+
+    /// Deserialize FID from base64 string
+    ///
+    /// # Failures
+    /// `Error::WrongSliceSize` if decoded length != 8
+    /// `Error::Base64WrongSymbolError` decoding failed
+    ///
+    /// # Examples
+    /// ```
+    /// use flowerid::id::FID;
+    /// let fid = FID::from_string("QJuLKsbysSw").unwrap();
+    /// assert_eq!(
+    ///     format!("{}", fid),
+    ///     "QJuLKsbysSw"
+    /// );
+    /// ```
+    pub fn from_string(val: &str) -> Result<FID> {
+        let val = val.as_bytes();
+        FID::from_b64(val)
     }
 
     /// Serialize FID to base64
