@@ -12,7 +12,7 @@ c_libs_win = ['Ws2_32', 'Userenv', 'Advapi32', 'Shell32']
 c_libs_nix = ['pthread', 'dl']
 extensions = [
     Extension("pyflowerid", ["pyflowerid.pyx"],
-        include_dirs = ['../flowerid_c/include'],
+        include_dirs = ['bindings/flowerid_c/include'],
         libraries = ['flowerid_c'] + (c_libs_win if os.name == 'nt' else c_libs_nix),
         library_dirs = ['target/release'])
 ]
@@ -23,7 +23,7 @@ def build_rust():
     os.makedirs(cargo_target, exist_ok=True)
     proc = subprocess.Popen( \
         ['cargo', 'build', '--release'], \
-        cwd='../flowerid_c' \
+        cwd='bindings/flowerid_c' \
         )
     proc.wait()
     assert proc.returncode == 0
