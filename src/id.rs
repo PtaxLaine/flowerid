@@ -1,10 +1,10 @@
 //! Flower identificator
 
-use std::fmt;
 use base64;
 use config as cfg;
-use std::mem;
 use std;
+use std::fmt;
+use std::mem;
 
 use {Error, Result};
 
@@ -41,11 +41,10 @@ impl FID {
         } else if generator >= 1 << cfg::GENERATOR_LENGTH {
             Err(Error::GeneratorOverflow(generator))
         } else {
-            Ok(FID(
-                (timestamp << (cfg::SEQUENCE_LENGTH + cfg::GENERATOR_LENGTH))
-                    | ((sequence as u64) << cfg::GENERATOR_LENGTH)
-                    | (generator as u64),
-            ))
+            Ok(FID((timestamp
+                << (cfg::SEQUENCE_LENGTH + cfg::GENERATOR_LENGTH))
+                | ((sequence as u64) << cfg::GENERATOR_LENGTH)
+                | (generator as u64)))
         }
     }
 
@@ -115,6 +114,7 @@ impl FID {
     /// ```
     /// use flowerid::id::FID;
     /// let fid = FID::new(0x204dc595637, 0x4ac, 0x12c).unwrap();
+    /// assert_eq!("QJuLKsbysSw", Into::<String>::into(fid.clone()));
     /// assert_eq!(
     ///     fid.to_string(),
     ///     "QJuLKsbysSw"
@@ -259,6 +259,12 @@ impl From<u64> for FID {
 impl From<FID> for u64 {
     fn from(id: FID) -> u64 {
         id.0
+    }
+}
+
+impl From<FID> for String {
+    fn from(id: FID) -> String {
+        id.to_string()
     }
 }
 

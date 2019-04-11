@@ -1,9 +1,9 @@
 //! Flower identificator generator
-use std::cmp;
-use std::time;
-use std::thread;
-use id::FID;
 use config as cfg;
+use id::FID;
+use std::cmp;
+use std::thread;
+use std::time;
 #[cfg(not(test))]
 use std::time::{SystemTime, UNIX_EPOCH};
 #[cfg(test)]
@@ -267,13 +267,15 @@ mod test {
         assert_eq!(
             FIDGenerator::new(
                 FIDGeneratorBuilder::new(GENERATOR).sequence(1 << cfg::SEQUENCE_LENGTH)
-            ).unwrap_err(),
+            )
+            .unwrap_err(),
             Error::SequenceOverflow(1 << cfg::SEQUENCE_LENGTH)
         );
         assert_eq!(
             FIDGenerator::new(
                 FIDGeneratorBuilder::new(GENERATOR).timestamp_last(1 << cfg::TIMESTAMP_LENGTH)
-            ).unwrap_err(),
+            )
+            .unwrap_err(),
             Error::TimestampOverflow(1 << cfg::TIMESTAMP_LENGTH)
         );
     }
@@ -319,7 +321,8 @@ mod test {
             FIDGeneratorBuilder::new(GENERATOR)
                 .wait_sequence(false)
                 .timestamp_in_seconds(),
-        ).unwrap();
+        )
+        .unwrap();
         for i in 0..(1 << cfg::SEQUENCE_LENGTH) {
             let fid = gen.next().unwrap();
             assert_eq!(fid.timestamp(), TIMESTAMP / 1000);

@@ -11,17 +11,17 @@
 //! println!("{:?}", fid);
 //! ```
 
-pub mod id;
-pub mod generator;
 pub mod base64;
 pub mod config;
+pub mod generator;
+pub mod id;
 mod stubs;
 
 pub use id::FID;
 
-use std::result;
-use std::fmt;
 use std::error;
+use std::fmt;
+use std::result;
 
 /// Errors
 #[derive(Debug, Copy, Clone, PartialEq)]

@@ -1,7 +1,7 @@
 extern crate flowerid;
 
-use std::time;
 use std::thread;
+use std::time;
 
 #[test]
 fn usage() {
@@ -14,7 +14,8 @@ fn usage() {
             FIDGeneratorBuilder::new(0x47)
                 .timestamp_offset(-(offset.as_secs() as i64))
                 .timestamp_in_seconds(),
-        ).unwrap();
+        )
+        .unwrap();
         for _ in 0..100 {
             let fid = gen.next().unwrap();
             thread::sleep(time::Duration::from_millis(1));

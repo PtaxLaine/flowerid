@@ -1,6 +1,6 @@
 use std::ops;
-use std::time;
 use std::sync::atomic;
+use std::time;
 
 pub const UNIX_EPOCH: SystemTime = SystemTime(0);
 
@@ -90,8 +90,8 @@ impl ops::SubAssign<time::Duration> for SystemTime {
 mod test {
     #[test]
     fn basic() {
-        use std::time::Duration;
         use super::SystemTime;
+        use std::time::Duration;
 
         assert_eq!(super::UNIX_EPOCH, SystemTime(0));
 
